@@ -1,10 +1,14 @@
-import { computed, CSSProperties, ref, watch, onUnmounted, onMounted, nextTick, defineComponent } from 'vue'
+import { computed, ref, watch, nextTick, defineComponent } from 'vue'
 import { useState } from '@fect-ui/vue-hooks'
-import { createName, getDomRect, createBem, make } from '../utils'
-import type { Shape, Placement } from './interface'
 import { props } from './props'
-import './index.less'
 import { createSwipeContext } from './swipe-context'
+import { createName, getDomRect, createBem, len, make } from '../utils'
+import { Position, useDraggable, useMounted } from '../composables'
+
+import type { CSSProperties, Ref } from 'vue'
+import type { Shape, Placement } from './interface'
+
+import './index.less'
 
 const name = createName('Swipe')
 
@@ -23,189 +27,151 @@ export default defineComponent({
   setup(props, { slots, emit }) {
     const { provider, children } = createSwipeContext()
 
-    // const parent = createProvider<ComponentInstance>(READONLY_SWIPE_KEY)
-
     const swipeRef = ref<HTMLDivElement>()
-    /**  why not set initialValue as inital index ,
-     *   because the props value may be overstep
-     **/
+    const trackRef = ref<HTMLDivElement>()
+
     const [index, setIndex] = useState<number>(0)
-    const [locked, setLocked] = useState<boolean>(false)
     const [translate, setTranslate] = useState<number>(0)
-    const [trackSize, setTrackSize] = useState<number>(0)
-    const [size, setSize] = useState<number>(0)
 
-    //  children length
-    const length = computed(() => children.length)
+    const [lockDuration, setLockDuration] = useState<number>(0)
 
-    provider({ index, trackSize, size })
+    // the swipe container real width
+    const [swipeWidth, setSwipeWidth] = useState<number>(0)
 
-    const boundaryIndex = (index: number) => {
+    const [trackWidth, setTrackWidth] = useState<number>(0)
+
+    provider({ index, trackSize: trackWidth, size: swipeWidth })
+
+    const loadPrev = () => {
+      //
+      if (index.value !== 0) {
+        setTranslate(index.value * -swipeWidth.value)
+      }
+    }
+
+    const loadNext = () => {
+      //
+      if (index.value !== len(children)) {
+        setTranslate(index.value * -swipeWidth.value)
+      }
+    }
+
+    const calibration = (fn?: () => void) => {
+      //
+      fn && fn()
+    }
+
+    const updateTranslate = (next = false) => {
       const { loop } = props
-      const presetIdx = length.value - 1
-      if (index < 0) return loop ? presetIdx : 0
-      if (index > presetIdx) return loop ? 0 : presetIdx
-      return index
-    }
 
-    const calibrationPosition = (fn?: () => void) => {
-      const overLeft = translate.value >= size.value
-      const overRight = translate.value <= -trackSize.value
-      const leftTranslate = 0
-      const rightTranslate = -(-trackSize.value - size.value)
-      setLocked(true)
-      if (overLeft || overRight) {
-        setLocked(true)
-        setTranslate(overRight ? leftTranslate : rightTranslate)
-        children[0].setTranslate(0)
-        children[length.value - 1].setTranslate(0)
-      }
-      nextTickFrame(() => {
-        setLocked(false)
-        // eslint-disable-next-line no-unused-expressions
-        fn?.()
-      })
-    }
-
-    let timer: any
-
-    const startAutoPlay = () => {
-      const { autoplay } = props
-      if (!autoplay || length.value <= 1) return
-      stopAutoPlay()
-      timer = setTimeout(() => {
-        updateTranslate('next')
-        startAutoPlay()
-      }, autoplay)
-    }
-
-    const stopAutoPlay = () => timer && clearTimeout(timer)
-
-    /**
-     * control item direction
-     */
-
-    const next = (preidx: number, loop: boolean) => {
-      if (preidx === length.value - 1 && loop) {
-        children[0].setTranslate(trackSize.value)
-        setTranslate(length.value * -size.value)
-        return
-      }
-      if (preidx !== length.value - 1) {
-        setTranslate(index.value * -size.value)
-      }
-    }
-
-    const prev = (preidx: number, loop: boolean) => {
-      if (preidx === 0 && loop) {
-        children[length.value - 1].setTranslate(-trackSize.value)
-        setTranslate(size.value)
-        return
-      }
-      if (preidx !== 0) {
-        setTranslate(index.value * -size.value)
-      }
-    }
-
-    const updateTranslate = (type: Placement) => {
-      if (length.value <= 1) return
-      const { loop } = props
-      const currentIndex = index.value
-      const direction = type === 'next'
-      const idx = direction ? boundaryIndex(currentIndex + 1) : boundaryIndex(currentIndex - 1)
-      setIndex(idx)
-      calibrationPosition(() => {
-        if (direction) return next(currentIndex, loop)
-        return prev(currentIndex, loop)
-      })
+      calibration(() => (next ? loadNext() : loadPrev()))
     }
 
     /**
-     * indircator click Event
+     * Before v1.6.0 when user trigger the window resize.
+     * We will initialize swipe cursor at first. But it's
+     * unreasonable.
      */
-    const indicatorHandler = (idx: number) => {
-      if (length.value <= 1 || idx === index.value) return
-      idx = idx >= length.value ? length.value : idx
-      const status: Placement = idx > index.value ? 'next' : 'prev'
-      const tasks = make(Math.abs(idx - index.value))
-      tasks.map(() => updateTranslate(status))
-    }
 
-    const renderIndicator = () => {
-      if (slots.indicator) {
-        return slots.indicator()
-      }
-      const { indicatorDisplay } = props
-      if (indicatorDisplay && length.value) {
-        const setStyle = (idx: number) => {
-          const active = index.value === idx
-          const { indicatorColor, indicatorSize } = props
-          return {
-            backgroundColor: indicatorColor ? indicatorColor : 'var(--success-default)',
-            width: indicatorSize,
-            height: indicatorSize,
-            opacity: active ? 1 : 0.3
-          } as CSSProperties
-        }
-
-        return (
-          <div class={bem('indicators')}>
-            {make(length.value).map((_, i) => (
-              <span class={bem('indicator')} style={setStyle(i)} key={i} onClick={() => indicatorHandler(i)}></span>
-            ))}
-          </div>
-        )
-      }
-    }
-
-    const initializeIndex = () => {
-      setLocked(true)
-      const { initialValue } = props
-      const index = Number(initialValue)
-      const translate = index * -size.value
-      setIndex(boundaryIndex(index))
-      setTranslate(translate)
-      nextTickFrame(() => setLocked(false))
-    }
-
-    /**
-     * In this version we only provide horizontal
-     */
-    const resize = () => {
+    const initializeSwipe = (invork?: (length: number) => void) => {
       nextTick(() => {
-        const { width } = getDomRect(swipeRef) as Shape
-        setSize(width)
-        setTrackSize(width * length.value)
-        initializeIndex()
-        startAutoPlay()
+        const { width } = getDomRect(swipeRef)
+        setSwipeWidth(width)
+        setTrackWidth(width * len(children))
+        invork && invork(len(children))
       })
+    }
+
+    const windowResizeHandler = (destory = false) => {
+      window.addEventListener('resize', () =>
+        initializeSwipe((cl) => {
+          setTranslate(cl * swipeWidth.value)
+          if (destory) {
+          }
+        })
+      )
     }
 
     watch(index, (pre) => emit('change', pre))
 
-    watch(() => length.value, resize)
+    useMounted([windowResizeHandler, () => windowResizeHandler(true)])
 
-    onMounted(() => {
-      window.addEventListener('resize', resize)
+    watch(children, () =>
+      initializeSwipe(() => {
+        const { initialValue } = props
+        setIndex(initialValue)
+      })
+    )
+
+    const dragInvork = (invork?: () => void) => {
+      if (len(children) <= 1 || !props.touchable) return
+      invork && invork()
+    }
+
+    const dragStartHandler = () => dragInvork()
+
+    const dragMoveHandler = (_: Event, position: Ref<Position>) =>
+      dragInvork(() => {
+        setTranslate(-position.value.x)
+      })
+
+    const dragEndHandler = (_: Event, position: Ref<Position>) => {
+      dragInvork(() => {
+        setTranslate(-position.value.x)
+      })
+    }
+
+    useDraggable(trackRef, {
+      onStart: dragStartHandler,
+      onMove: dragMoveHandler,
+      onEnd: dragEndHandler
     })
 
-    onUnmounted(() => {
-      window.removeEventListener('resize', resize)
-      stopAutoPlay()
-    })
+    const indicatorHandler = (nextCursor: number) => {
+      if (len(children) <= 1 || nextCursor === index.value) return
+      const status = nextCursor > index.value
+      const tasks = Math.abs(nextCursor - index.value)
+      setIndex(nextCursor)
+      make(tasks).forEach(() => updateTranslate(status))
+    }
 
     const setTrackStyle = computed(() => {
       const style: CSSProperties = {
-        width: `${trackSize.value}px`,
+        width: `${trackWidth.value}px`,
         transform: `translateX(${translate.value}px)`,
-        transitionDuration: locked.value ? '0ms' : `${props.duration}ms`
+        transitionDuration: lockDuration.value ? '0ms' : `${props.duration}ms`
       }
       return style
     })
 
+    const renderIndicator = () => {
+      if (slots.indicator) return slots.indicator()
+
+      const { indicatorDisplay } = props
+      if (!len(children) && indicatorDisplay) return
+      const setStyle = (idx: number): CSSProperties => {
+        const active = index.value === idx
+        const { indicatorColor, indicatorSize } = props
+        return {
+          backgroundColor: indicatorColor ? indicatorColor : 'var(--success-default)',
+          width: indicatorSize,
+          height: indicatorSize,
+          opacity: active ? 1 : 0.3
+        }
+      }
+
+      return (
+        <div class={bem('indicators')}>
+          {children.map((_, i) => (
+            <span class={bem('indicator')} style={setStyle(i)} key={i} onClick={() => indicatorHandler(i)}></span>
+          ))}
+        </div>
+      )
+    }
+
     return () => (
       <div class={bem(null)} ref={swipeRef}>
-        <div class={bem('track')} style={setTrackStyle.value}>
+        <div class={bem('track')} ref={trackRef} style={setTrackStyle.value}>
           {slots.default?.()}
         </div>
         {renderIndicator()}

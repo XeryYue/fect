@@ -7,12 +7,16 @@ export const props = {
     type: [Number],
     default: ''
   },
+  touchable: {
+    type: Boolean,
+    default: true
+  },
   loop: {
     type: Boolean,
     default: true
   },
   initialValue: {
-    type: [Number, String],
+    type: Number,
     default: 0
   },
   indicatorSize: {

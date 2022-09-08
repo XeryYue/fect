@@ -4,6 +4,7 @@ import type { DeepReadonly, Ref } from 'vue'
 export interface SwipeContext {
   index: DeepReadonly<Ref<number>>
   size: DeepReadonly<Ref<number>>
+  trackSize: DeepReadonly<Ref<number>>
 }
 
 export interface Shape {

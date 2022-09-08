@@ -4,6 +4,6 @@ import type { SwipePropInstance, SwipeContext } from './interface'
 
 const READONLY_SWIPE_KEY: InjectionKey<SwipeContext> = Symbol('swipeKey')
 
-export const createSwipeContext = () => createProvider<SwipePropInstance>(READONLY_SWIPE_KEY)
+export const createSwipeContext = () => createProvider<SwipePropInstance, SwipeContext>(READONLY_SWIPE_KEY)
 
 export const useSwipeContext = () => useProvider(READONLY_SWIPE_KEY)
