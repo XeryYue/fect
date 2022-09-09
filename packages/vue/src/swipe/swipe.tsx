@@ -2,23 +2,19 @@ import { computed, ref, watch, nextTick, defineComponent } from 'vue'
 import { useState } from '@fect-ui/vue-hooks'
 import { props } from './props'
 import { createSwipeContext } from './swipe-context'
-import { createName, getDomRect, createBem, len, make } from '../utils'
+import { createName, getDomRect, createBem, len, make, assign, pick } from '../utils'
 import { Position, useDraggable, useMounted } from '../composables'
 
 import type { CSSProperties, Ref } from 'vue'
 import type { Shape, Placement } from './interface'
+
+import type { DomRect } from '../utils'
 
 import './index.less'
 
 const name = createName('Swipe')
 
 const bem = createBem('fect-swipe')
-
-const nextTickFrame = (fn: FrameRequestCallback) => {
-  requestAnimationFrame(() => {
-    requestAnimationFrame(fn)
-  })
-}
 
 export default defineComponent({
   name,
@@ -40,6 +36,13 @@ export default defineComponent({
 
     const [trackWidth, setTrackWidth] = useState<number>(0)
 
+    // darag position
+
+    const dragStartPosition: Position = {
+      x: 0,
+      y: 0
+    }
+
     provider({ index, trackSize: trackWidth, size: swipeWidth })
 
     const loadPrev = () => {
@@ -58,6 +61,8 @@ export default defineComponent({
 
     const calibration = (fn?: () => void) => {
       //
+      const overLeft = translate.value >= swipeWidth.value
+      const overRight = translate.value <= -trackWidth.value
       fn && fn()
     }
 
@@ -108,16 +113,29 @@ export default defineComponent({
       invork && invork()
     }
 
-    const dragStartHandler = () => dragInvork()
+    const dragStartHandler = (_: Event, position: DomRect) =>
+      dragInvork(() => assign(dragStartPosition, pick(position, ['x', 'y'])))
 
     const dragMoveHandler = (_: Event, position: Ref<Position>) =>
       dragInvork(() => {
-        setTranslate(-position.value.x)
+        setTranslate(position.value.x)
+
+        if (!props.loop) return
+        if (translate.value >= 0) children[len(children) - 1].setTranslate(-translate.value)
+        if (translate.value <= -(trackWidth.value - swipeWidth.value)) children[0].setTranslate(trackWidth.value)
+        if (translate.value > -(trackWidth.value - swipeWidth.value) && translate.value < 0) {
+          children[len(children) - 1].setTranslate(0)
+          children[0].setTranslate(0)
+        }
       })
 
     const dragEndHandler = (_: Event, position: Ref<Position>) => {
       dragInvork(() => {
-        setTranslate(-position.value.x)
+        const { x: prevX } = dragStartPosition
+        const distance = Math.abs(prevX - position.value.x)
+        const status = position.value.x < prevX
+        setIndex((pre) => (status ? (pre += 1) : (pre -= 1)))
+        updateTranslate(status)
       })
     }
 

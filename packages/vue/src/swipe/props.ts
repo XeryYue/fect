@@ -4,8 +4,7 @@ export const props = {
     default: 300
   },
   autoplay: {
-    type: [Number],
-    default: ''
+    type: Number
   },
   touchable: {
     type: Boolean,
