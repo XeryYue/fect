@@ -6,7 +6,6 @@ import { createName, getDomRect, createBem, len, make, assign, pick } from '../u
 import { Position, useDraggable, useMounted } from '../composables'
 
 import type { CSSProperties, Ref } from 'vue'
-import type { Shape, Placement } from './interface'
 
 import type { DomRect } from '../utils'
 
@@ -29,7 +28,7 @@ export default defineComponent({
     const [index, setIndex] = useState<number>(0)
     const [translate, setTranslate] = useState<number>(0)
 
-    const [lockDuration, setLockDuration] = useState<number>(0)
+    const [lockDuration, setLockDuration] = useState<boolean>(false)
 
     // the swipe container real width
     const [swipeWidth, setSwipeWidth] = useState<number>(0)
@@ -59,17 +58,21 @@ export default defineComponent({
       }
     }
 
-    const calibration = (fn?: () => void) => {
-      //
-      const overLeft = translate.value >= swipeWidth.value
-      const overRight = translate.value <= -trackWidth.value
-      fn && fn()
+    const calibration = (invork?: () => void) => {
+      // const overLeft = translate.value >= swipeWidth.value
+      // const overRight = translate.value <= -trackWidth.value
+      // // fn && fn()
+      // const leftTranslate = 0
+      // const rightTranslate = -(trackWidth.value - swipeWidth.value)
+      // setLockDuration(true)
+      // if (overLeft || overRight) {
+      // }
     }
 
     const updateTranslate = (next = false) => {
       const { loop } = props
 
-      calibration(() => (next ? loadNext() : loadPrev()))
+      // calibration(() => (next ? loadNext() : loadPrev()))
     }
 
     /**
@@ -79,18 +82,21 @@ export default defineComponent({
      */
 
     const initializeSwipe = (invork?: (length: number) => void) => {
+      setLockDuration(true)
       nextTick(() => {
         const { width } = getDomRect(swipeRef)
         setSwipeWidth(width)
         setTrackWidth(width * len(children))
         invork && invork(len(children))
+        window.setTimeout(() => setLockDuration(false))
       })
     }
 
     const windowResizeHandler = (destory = false) => {
       window.addEventListener('resize', () =>
         initializeSwipe((cl) => {
-          setTranslate(cl * swipeWidth.value)
+          setTranslate(cl * -swipeWidth.value)
+          children.forEach((child) => child.setTranslate(0))
           if (destory) {
           }
         })
@@ -99,7 +105,7 @@ export default defineComponent({
 
     watch(index, (pre) => emit('change', pre))
 
-    useMounted([windowResizeHandler, () => windowResizeHandler(true)])
+    // useMounted([windowResizeHandler, () => windowResizeHandler(true)])
 
     watch(children, () =>
       initializeSwipe(() => {
@@ -110,16 +116,19 @@ export default defineComponent({
 
     const dragInvork = (invork?: () => void) => {
       if (len(children) <= 1 || !props.touchable) return
+      setLockDuration(true)
       invork && invork()
     }
 
-    const dragStartHandler = (_: Event, position: DomRect) =>
+    const dragStartHandler = (_: Event, position: DomRect) => {
       dragInvork(() => assign(dragStartPosition, pick(position, ['x', 'y'])))
+      console.log(dragStartPosition)
+    }
 
-    const dragMoveHandler = (_: Event, position: Ref<Position>) =>
+    const dragMoveHandler = (e: Event, position: Ref<Position>) =>
       dragInvork(() => {
-        setTranslate(position.value.x)
-
+        e.preventDefault()
+        setTranslate((pre) => (pre += position.value.x))
         if (!props.loop) return
         if (translate.value >= 0) children[len(children) - 1].setTranslate(-translate.value)
         if (translate.value <= -(trackWidth.value - swipeWidth.value)) children[0].setTranslate(trackWidth.value)
@@ -139,6 +148,11 @@ export default defineComponent({
       })
     }
 
+    /**
+     * UseDraggable composable content touch and mouse event.
+     * So in pc or mobile behavior as compatible as possible
+     */
+
     useDraggable(trackRef, {
       onStart: dragStartHandler,
       onMove: dragMoveHandler,
@@ -147,10 +161,10 @@ export default defineComponent({
 
     const indicatorHandler = (nextCursor: number) => {
       if (len(children) <= 1 || nextCursor === index.value) return
-      const status = nextCursor > index.value
-      const tasks = Math.abs(nextCursor - index.value)
-      setIndex(nextCursor)
-      make(tasks).forEach(() => updateTranslate(status))
+      // const status = nextCursor > index.value
+      // const tasks = Math.abs(nextCursor - index.value)
+      // setIndex(nextCursor)
+      // make(tasks).forEach(() => updateTranslate(status))
     }
 
     const setTrackStyle = computed(() => {

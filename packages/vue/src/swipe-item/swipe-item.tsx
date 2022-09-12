@@ -1,9 +1,12 @@
-import { computed, CSSProperties, defineComponent } from 'vue'
+import { computed, defineComponent } from 'vue'
 import { useState, useExpose } from '@fect-ui/vue-hooks'
-import { createName } from '../utils'
+import { createName, createBem } from '../utils'
 import { useSwipeContext } from '../swipe/swipe-context'
 
+import type { CSSProperties } from 'vue'
+
 const name = createName('SwipeItem')
+const bem = createBem('fect-swipe')
 
 export default defineComponent({
   name,
@@ -21,7 +24,7 @@ export default defineComponent({
     }
 
     const setStyle = computed(() => {
-      const { size } = context!
+      const { size } = context
       const style: CSSProperties = {
         width: `${size.value}px`,
         transform: `translateX(${translate.value}px)`
@@ -38,7 +41,7 @@ export default defineComponent({
     useExpose({ setTranslate })
 
     return () => (
-      <div class="fect-swipe__item" style={setStyle.value} onClick={clickHandler}>
+      <div class={bem('item')} style={setStyle.value} onClick={clickHandler}>
         {slots.default?.()}
       </div>
     )
